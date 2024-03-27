@@ -6,7 +6,7 @@ const int MAX_ITERATIONS = 256; // Максимальное количество
 const float RADIUS = 10.0f;
 
 // Функция для создания изображения множества Мандельброта
-void mandelbrot(float X0[4], float Y0[4], int* color) {
+inline void mandelbrot(float X0[4], float Y0[4], int* color) {
     float X [4] = {0};
     float Y [4] = {0};
 

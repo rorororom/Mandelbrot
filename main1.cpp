@@ -3,12 +3,16 @@
 #include <string>
 
 const int MAX_ITERATIONS = 256;
+extern "C" uint64_t Time();
+
+#define NOT_TIME_MEASURE
 
 void writeFPS(sf::RenderWindow& window, sf::Text& fpsText, sf::Clock& gameClock, int& frames) {
     frames++;
     sf::Time elapsed = gameClock.getElapsedTime();
     if (elapsed.asSeconds() >= 1.0f) {
-        float fps = frames / elapsed.asSeconds();
+        float fps = frames / gameClock.getElapsedTime().asSeconds();
+        printf("FPS: %f\n", fps);
         std::string fpsStr = "FPS: " + std::to_string(static_cast<int>(fps));
 
         fpsText.setString(fpsStr);
@@ -19,7 +23,7 @@ void writeFPS(sf::RenderWindow& window, sf::Text& fpsText, sf::Clock& gameClock,
     window.draw(fpsText);
 }
 
-int mandelbrot(float x0, float y0) {
+inline int mandelbrot(float x0, float y0) {
     float x = 0.0f;
     float y = 0.0f;
     int iteration = 0;
@@ -52,7 +56,7 @@ int main() {
     // sf::Font::loadFromFile();
 
     sf::Font font;
-    text.setFont(font);
+    // text.setFont(font);
     sf::Text fpsText("", font, 20);
     fpsText.setColor(sf::Color::Red);
     fpsText.setPosition(10, 10);
@@ -91,16 +95,27 @@ int main() {
             }
         }
 
-        // Отрисовка Mandelbrot Set
+        // uint64_t start = Time(); // начало
+        // #ifdef NOT_TIME_MEASURE
+        unsigned long long start = __rdtsc();
         for (int y = 0; y < HEIGHT; y++) {
             for (int x = 0; x < WIDTH; x++) {
                 float xx = (float)x / WIDTH * 3.5f - 2.5f;
                 float yy = (float)y / HEIGHT * 2.0f - 1.0f;
-                int color = mandelbrot(xx, yy);
+                volatile int color = mandelbrot(xx, yy);
+
+                #ifndef NOT_TIME_MEASURE
                 sf::Color sfColor((color * 6) % 256, 0, (color * 10) % 256);
                 image.setPixel(x, y, sfColor);
+                #endif
             }
         }
+
+        // uint64_t end = Time(); // конец
+        unsigned long long end = __rdtsc();
+        uint64_t elapsedTime = end - start; // время выполнения программы
+
+        printf("Elapsed time: %llu cycles\n", elapsedTime);
 
         texture.update(image);
 
@@ -114,4 +129,3 @@ int main() {
 
     return 0;
 }
-

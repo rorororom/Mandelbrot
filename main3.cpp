@@ -47,7 +47,7 @@ inline void mm_mul_ps(float mm[4], const float mm1[4], const float mm2[4]) {
 // Функция складывает значения массива mm1 и массива mm2 (преобразованных в целые числа) и записывает результат в массив mm
 inline void mm_add_epi32(int mm[4], const int mm1[4], const float mm2[4]) {
     for (int i = 0; i < 4; i++)
-        mm[i] = (int)(mm1[i] + mm2[i]);
+        mm[i] = (int)(mm1[i] - mm2[i]);
 }
 
 // Функция сравнивает значения массивов mm1 и mm2 и записывает результат (1 или 0) в массив cmp
@@ -70,16 +70,13 @@ inline int mm_movemask_ps(const float cmp[4]) {
 }
 
 // Функция для генерации фрактала Мандельброта
-void mandelbrot(float xC[], float yC[], int color[]) {
-    float X0[4] = {}, Y0[4] = {};
+void mandelbrot(float xC[], float yC[], int* color) {
+    float X[4] = {}, Y[4] = {};
     // mm_set_ps1(X, 0);
     // mm_set_ps1(Y, 0);
 
-    float X[4] = {xC[0], xC[1], xC[2], xC[3]};
-    float Y[4] = {yC[0], yC[1], yC[2], yC[3]};
-
-    mm_set_ps(X0, xC[0], xC[1], xC[2], xC[3]);
-    mm_set_ps(Y0, yC[0], yC[1], yC[2], yC[3]);
+    mm_set_ps(X, xC[0], xC[1], xC[2], xC[3]);
+    mm_set_ps(Y, yC[0], yC[1], yC[2], yC[3]);
 
     float x2[4] = {}, y2[4] = {}, xy[4] = {}, r2[4] = {}, cmp[4] = {};
     float radius[4] = {RADIUS, RADIUS, RADIUS, RADIUS};
@@ -91,7 +88,7 @@ void mandelbrot(float xC[], float yC[], int color[]) {
 
         mm_add_ps(r2, x2, y2);
 
-        mm_cmple_ps(cmp, r2, &RADIUS);
+        mm_cmple_ps(cmp, r2, radius);
 
         int mask = mm_movemask_ps(cmp);
         if (!mask) break;
@@ -100,13 +97,12 @@ void mandelbrot(float xC[], float yC[], int color[]) {
 
         float tempX[4] = {};
         mm_sub_ps(tempX, x2, y2);
-        mm_add_ps(tempX, tempX, X0);
+        mm_add_ps(tempX, tempX, xC);
 
         float tempY[4] = {};
         mm_add_ps(tempY, xy, xy);
-        mm_sub_ps(tempY, tempY, Y0);
+        mm_add_ps(tempY, tempY, yC);
     }
-
 }
 
 // Основная функция main
