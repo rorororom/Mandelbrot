@@ -12,10 +12,11 @@
 
 Визуализация отрисовки фрактала Мандельброта:
 
-<video width="320" height="240" controls>
-  <source src="Запись экрана 2024-03-27 в 14.40.56.mov" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+<img src = "Picture/1.png" width="500" height="250">
+
+<img src = "Picture/2.png" width="500" height="250">
+
+<img src = "Picture/3.png" width="500" height="250">
 
 
 ### Запуск программы
