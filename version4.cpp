@@ -1,17 +1,18 @@
 #include <SFML/Graphics.hpp>
 #include <cmath>
-#include <string>
+#include <immintrin.h>
+#include <string.h>
+#include <stdio.h>
 
-const int   MAX_ITERATIONS = 256;
-const int   WIDTH          = 800;
-const int   HEIGHT         = 600;
-const int   LIMIT          = 100;
-const float ZOOM_FACTOR    = 1.1f;
-const float MOVE_FACTOR    = 0.1f;
-const float RADIUS         = 100.0f;
+const int    WIDTH          = 800;
+const int    HEIGHT         = 600;
+const float  ZOOM_FACTOR    = 1.1f;
+const float  MOVE_FACTOR    = 0.1f;
+const int    MAX_ITERATIONS = 256;
+const float  RADIUS         = 100.0f;
+const int    LIMIT          = 100.0;
 
 #define TIME_MEASURE
-// #define CNT_FPS
 
 void writeFPS(sf::RenderWindow& window, sf::Text& fpsText, sf::Clock& gameClock, int& frames, int& cntForFps, unsigned long long& all_fps) {
     frames++;
@@ -36,24 +37,6 @@ void writeFPS(sf::RenderWindow& window, sf::Text& fpsText, sf::Clock& gameClock,
     }
 
     window.draw(fpsText);
-}
-
-inline int mandelbrot(float x0, float y0) {
-    float x = 0.0f;
-    float y = 0.0f;
-    int iteration = 0;
-
-    while (x*x + y*y <= RADIUS && iteration < MAX_ITERATIONS) {
-        float xtemp = x * x - y * y + x0;
-        y = 2 * x * y + y0;
-        x = xtemp;
-        iteration++;
-    }
-
-    if (iteration == MAX_ITERATIONS)
-        return 0;
-    else
-        return iteration;
 }
 
 inline void handleKeyPress(sf::RenderWindow& window, float& xC, float& yC, float& zoom) {
@@ -88,18 +71,32 @@ inline void handleKeyPress(sf::RenderWindow& window, float& xC, float& yC, float
     }
 }
 
-inline void initialize(sf::RenderWindow& window, sf::Image& image, sf::Texture& texture, sf::Sprite& sprite, sf::Text& fpsText, sf::Font& font) {
-    window.create(sf::VideoMode(WIDTH, HEIGHT), "Mandelbrot Set");
+// Функция для создания изображения множества Мандельброта
+inline void mandelbrot(const __m128 X0, const __m128 Y0, volatile __m128& color) {
+    __m128 X =  _mm_set_ps1(0); // X = {0, 0, 0, 0}
+    __m128 Y =  _mm_set_ps1(0); // Y = {0, 0, 0, 0}
+    __m128 radius         = _mm_set_ps1(RADIUS);
 
-    image.create(WIDTH, HEIGHT, sf::Color::Black);
-    texture.create(WIDTH, HEIGHT);
-    sprite.setTexture(texture);
 
-    font.loadFromFile("arial.ttf");
-    fpsText.setFont(font);
-    fpsText.setCharacterSize(20);
-    fpsText.setFillColor(sf::Color::Red);
-    fpsText.setPosition(10, 10);
+    _mm_storeu_si128((__m128i*)&X, (__m128i)X0); // X = X0
+    _mm_storeu_si128((__m128i*)&Y, (__m128i)Y0); // Y = Y0
+
+    for (int n = 0; n < MAX_ITERATIONS; n++) {
+        __m128 x2 = _mm_mul_ps(X, X);
+        __m128 y2 = _mm_mul_ps(Y, Y);
+        __m128 xy = _mm_mul_ps(X, Y);
+
+        __m128 r2 = _mm_add_ps(x2, y2);
+        __m128 cmp = _mm_cmple_ps(r2, radius);
+
+        int mask = _mm_movemask_ps(cmp);
+        if (!mask) break;
+
+        color = _mm_sub_epi32(color, _mm_castps_si128(cmp));
+
+        X = _mm_add_ps(_mm_sub_ps(x2, y2), X0);
+        Y = _mm_add_ps(_mm_add_ps(xy, xy), Y0);
+    }
 }
 
 inline void processEvents(sf::RenderWindow& window, float& xC, float& yC, float& zoom, sf::Image& image, sf::Texture& texture, sf::Sprite& sprite, sf::Text& fpsText, sf::Clock& gameClock, int& frames) {
@@ -114,14 +111,22 @@ inline void processEvents(sf::RenderWindow& window, float& xC, float& yC, float&
         #endif
 
         for (int y = 0; y < HEIGHT; y++) {
-            for (int x = 0; x < WIDTH; x++) {
-                float xx = (float)x / WIDTH * 3.5f * zoom - 2.5f + xC;
-                float yy = (float)y / HEIGHT * 2.0f * zoom - 1.0f + yC;
-                volatile int color = mandelbrot(xx, yy);
+            for (int x = 0; x < WIDTH; x += 4) {
+                __m128 X0 = _mm_set_ps((float) (x + 3) / WIDTH * 3.5f * zoom - 2.5f + xC,
+                                        (float)(x + 2) / WIDTH * 3.5f * zoom - 2.5f + xC,
+                                        (float)(x + 1) / WIDTH * 3.5f * zoom - 2.5f + xC,
+                                        (float)(x + 0) / WIDTH * 3.5f * zoom - 2.5f + xC);
+                __m128 Y0 = _mm_set_ps1((float)y / HEIGHT * 2.0f * zoom - 1.0f + yC);
+
+                volatile __m128 color = _mm_set_ps(0, 0, 0, 0);
+                mandelbrot(X0, Y0, color);
 
                 #ifndef TIME_MEASURE
-                sf::Color sfColor((color * 6) % 256, 0, (color * 10) % 256);
-                image.setPixel(x, y, sfColor);
+                int* color_int = (int*)(&color);
+                for (int i = 0; i < 4; i++) {
+                    sf::Color sfColor((color_int[i] * 6) % 256, 0, (color_int[i] * 10) % 256);
+                    image.setPixel(x + i, y, sfColor);
+                }
                 #endif
             }
         }
@@ -130,10 +135,10 @@ inline void processEvents(sf::RenderWindow& window, float& xC, float& yC, float&
         unsigned long long end = __rdtsc();
         unsigned long long elapsedTime = end - start;
         cntForTick++;
+        all_time += elapsedTime;
         #endif
 
         cntForFps++;
-        all_time += elapsedTime;
 
         #ifdef TIME_MEASURE
         if (cntForTick == LIMIT) {
@@ -149,6 +154,20 @@ inline void processEvents(sf::RenderWindow& window, float& xC, float& yC, float&
 
         window.display();
     }
+}
+
+inline void initialize(sf::RenderWindow& window, sf::Image& image, sf::Texture& texture, sf::Sprite& sprite, sf::Text& fpsText, sf::Font& font) {
+    window.create(sf::VideoMode(WIDTH, HEIGHT), "Mandelbrot Set");
+
+    image.create(WIDTH, HEIGHT, sf::Color::Black);
+    texture.create(WIDTH, HEIGHT);
+    sprite.setTexture(texture);
+
+    font.loadFromFile("arial.ttf");
+    fpsText.setFont(font);
+    fpsText.setCharacterSize(20);
+    fpsText.setFillColor(sf::Color::Red);
+    fpsText.setPosition(10, 10);
 }
 
 int main() {
